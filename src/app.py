@@ -9,10 +9,13 @@ st.write("Upload PDFs into `data/` folder and ask questions below.")
 query = st.text_input("❓ Ask a question from your documents:")
 
 if query:
-    result = qa({"query": query})
+    result = qa(query)
     st.write("### ✅ Answer:")
     st.write(result["result"])
 
-    st.write("### 📚 Sources:")
-    for doc in result["source_documents"]:
-        st.write(f"- {doc.metadata}")
+    if result.get("source_documents"):
+        st.write("### 📚 Sources:")
+        for doc in result["source_documents"]:
+            st.write(f"- {doc.metadata}")
+    else:
+        st.write("⚠️ No sources found for this answer.")
