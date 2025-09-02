@@ -1,7 +1,7 @@
 import streamlit as st
-from rag_qa import load_qa_chain
+import rag_qa
 
-qa = load_qa_chain()
+qa = rag_qa.load_qa_chain()
 
 st.title("📄 AI Document Assistant")
 st.write("Upload PDFs into `data/` folder and ask questions below.")
