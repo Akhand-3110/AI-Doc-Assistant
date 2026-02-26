@@ -1,7 +1,7 @@
 import streamlit as st
 from rag_qa import build_qa_chain_from_pdfs
 
-st.set_page_config(page_title="AI Document Assistant")
+st.set_page_config(page_title="AI Document Assistant", layout="centered")
 
 st.title("📄 AI Document Assistant")
 st.write("Upload **text-based PDF files** and ask questions from them.")
@@ -19,7 +19,6 @@ if uploaded_files:
         with st.spinner("Processing documents..."):
             qa = build_qa_chain_from_pdfs(uploaded_files)
         st.success("Documents processed successfully! Ask your question below 👇")
-
     except ValueError as e:
         st.error(str(e))
 
@@ -30,7 +29,7 @@ if query and qa:
         result = qa(query)
 
     st.subheader("✅ Answer")
-    st.write(result["result"])
+    st.write(result.get("result", "No answer found."))
 
     if result.get("source_documents"):
         st.subheader("📚 Sources")
