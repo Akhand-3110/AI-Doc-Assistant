@@ -18,9 +18,9 @@ def load_qa_chain():
     retriever = vectordb.as_retriever()
 
     hf_pipeline = pipeline(
-        "text2text-generation",
+        task="text-generation",
         model="google/flan-t5-base",
-        max_length=512
+        max_new_tokens=256
     )
 
     llm = HuggingFacePipeline(pipeline=hf_pipeline)
