@@ -1,5 +1,5 @@
 import streamlit as st
-from rag_qa import build_qa_chain_from_pdfs
+from rag_qa import build_qa_system
 
 st.set_page_config(page_title="AI Document Assistant")
 
@@ -16,9 +16,13 @@ qa = None
 project_title = None
 project_id = None
 
+@st.cache_resource(show_spinner=False)
+def load_system(files):
+    return build_qa_system(files)
+
 if uploaded_files:
     with st.spinner("Processing documents..."):
-        qa, project_title, project_id = build_qa_chain_from_pdfs(uploaded_files)
+        qa, project_title, project_id = load_system(uploaded_files)
     st.success("Documents processed successfully! Ask your question below 👇")
 
 query = st.text_input("❓ Ask a question")
@@ -26,7 +30,7 @@ query = st.text_input("❓ Ask a question")
 if query and qa:
     q = query.lower()
 
-    # 🎯 RULE-BASED ANSWERS (NO SOURCES)
+    # 🎯 RULE-BASED (NO SOURCES)
     if "title" in q and project_title:
         st.subheader("✅ Answer")
         st.write(project_title)
@@ -35,7 +39,7 @@ if query and qa:
         st.subheader("✅ Answer")
         st.write(f"The project ID is {project_id}.")
 
-    # 🤖 RAG ANSWERS (WITH SOURCES)
+    # 🤖 RAG-BASED (WITH SOURCES)
     else:
         with st.spinner("Thinking..."):
             result = qa(query)
