@@ -1,0 +1,26 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+
+# Virtual environments
+venv/
+.venv/
+
+# Environment variables
+.env
+.env.*
+
+# OS / editor files
+.DS_Store
+.cache/
+
+# Databases (Chroma / SQLite)
+db/
+*.sqlite
+*.db
+
+# Streamlit
+.streamlit/secrets.toml
