@@ -68,18 +68,20 @@ def build_qa_chain_from_pdfs(uploaded_files):
 
     # 🔹 Custom prompt (IMPORTANT)
     prompt = PromptTemplate(
-        input_variables=["context", "question"],
-        template=(
-            "You are an AI assistant. Answer the question ONLY using the context below.\n\n"
-            "Context:\n{context}\n\n"
-            "Question:\n{question}\n\n"
-            "Answer clearly and concisely."
-        )
+    input_variables=["context", "question"],
+    template=(
+        "You are an AI assistant reading a technical document.\n"
+        "Answer the question using ONLY the information present in the context.\n"
+        "If the question asks for a title, name, or heading, extract it EXACTLY as written.\n\n"
+        "Context:\n{context}\n\n"
+        "Question:\n{question}\n\n"
+        "Answer:"
     )
+)
 
     qa = RetrievalQA.from_chain_type(
         llm=llm,
-        retriever=vectordb.as_retriever(search_kwargs={"k": 3}),
+        retriever=vectordb.as_retriever(search_kwargs={"k": 5}),
         return_source_documents=True,
         chain_type_kwargs={"prompt": prompt}
     )
