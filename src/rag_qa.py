@@ -1,52 +1,33 @@
-from langchain_community.vectorstores import Chroma
+from langchain.chains import RetrievalQA
 from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import Chroma
 from transformers import pipeline
-
-DB_FOLDER = "db"
-
+from langchain_community.llms import HuggingFacePipeline
 
 def load_qa_chain():
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-    db = Chroma(persist_directory=DB_FOLDER, embedding_function=embeddings)
-    retriever = db.as_retriever(search_kwargs={"k": 3})
-    generator = pipeline("text2text-generation", model="google/flan-t5-base")
+    embeddings = HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
+    )
 
-    def qa(query: str):
-        # ✅ Pass run_manager=None
-        docs = retriever._get_relevant_documents(query, run_manager=None)
-        
-        context = "\n".join([doc.page_content for doc in docs])
-        if not context.strip():
-            return {"result": "⚠️ No relevant context found.", "source_documents": []}
+    vectordb = Chroma(
+        persist_directory="db",
+        embedding_function=embeddings
+    )
 
-        prompt = f"Answer the question based on the following context:\n\n{context}\n\nQuestion: {query}\nAnswer:"
-        result = generator(prompt, max_length=256, do_sample=False)
-        answer = result[0]['generated_text'].strip() if result else "❓ No answer generated."
+    retriever = vectordb.as_retriever()
 
-        return {"result": answer, "source_documents": docs}
+    hf_pipeline = pipeline(
+        "text-generation",
+        model="google/flan-t5-base",
+        max_length=512
+    )
+
+    llm = HuggingFacePipeline(pipeline=hf_pipeline)
+
+    qa = RetrievalQA.from_chain_type(
+        llm=llm,
+        chain_type="stuff",
+        retriever=retriever
+    )
 
     return qa
-
-
-def rag_qa():
-    qa = load_qa_chain()
-
-    print("\n🤖 Ask me anything about your documents! (type 'exit' to quit)\n")
-    while True:
-        query = input("👉 Your question: ")
-        if query.lower() in ["exit", "quit"]:
-            print("👋 Goodbye!")
-            break
-        if not query.strip():
-            print("⚠️ Please enter a valid question.")
-            continue
-
-        try:
-            result = qa(query)
-            print("\n📖 Answer:", result["result"], "\n")
-        except Exception as e:
-            print("⚠️ Error:", str(e))
-
-
-if __name__ == "__main__":
-    rag_qa()
