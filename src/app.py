@@ -1,7 +1,7 @@
 import streamlit as st
-from rag_qa import *
+from rag_qa import load_qa_chain
 
-qa = rag_qa.load_qa_chain()
+qa = load_qa_chain()
 
 st.title("📄 AI Document Assistant")
 st.write("Upload PDFs into `data/` folder and ask questions below.")
@@ -10,6 +10,7 @@ query = st.text_input("❓ Ask a question from your documents:")
 
 if query:
     result = qa(query)
+
     st.write("### ✅ Answer:")
     st.write(result["result"])
 
@@ -17,5 +18,3 @@ if query:
         st.write("### 📚 Sources:")
         for doc in result["source_documents"]:
             st.write(f"- {doc.metadata}")
-    else:
-        st.write("⚠️ No sources found for this answer.")    
