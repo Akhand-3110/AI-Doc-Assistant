@@ -14,22 +14,19 @@ from langchain_community.llms import HuggingFacePipeline
 
 
 def extract_project_title(text: str):
-    """
-    Rule-based extraction for project title.
-    Looks for patterns like:
-    ON "TITLE"
-    """
     match = re.search(r'ON\s+["“](.+?)["”]', text, re.IGNORECASE)
-    if match:
-        return match.group(1).strip()
-    return None
+    return match.group(1).strip() if match else None
+
+
+def extract_project_id(text: str):
+    match = re.search(r'Project\s*Id\s*:\s*(\d+)', text, re.IGNORECASE)
+    return match.group(1) if match else None
 
 
 def build_qa_chain_from_pdfs(uploaded_files):
-    documents = []
     full_text = ""
 
-    # 🔹 Read PDFs
+    # 🔹 Read PDF text
     for uploaded_file in uploaded_files:
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
             tmp.write(uploaded_file.read())
@@ -46,15 +43,15 @@ def build_qa_chain_from_pdfs(uploaded_files):
     if not full_text.strip():
         raise ValueError("No readable text found in the uploaded PDF.")
 
-    # 🔹 Extract title explicitly
+    # 🔹 Rule-based extraction
     project_title = extract_project_title(full_text)
+    project_id = extract_project_id(full_text)
 
-    # 🔹 Store full document
-    documents.append(Document(page_content=full_text))
+    # 🔹 RAG setup
+    documents = [Document(page_content=full_text)]
 
-    # 🔹 Split text
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size=300,   # 🔥 smaller chunks
+        chunk_size=300,
         chunk_overlap=50
     )
     docs = splitter.split_documents(documents)
@@ -90,4 +87,4 @@ def build_qa_chain_from_pdfs(uploaded_files):
         chain_type_kwargs={"prompt": prompt}
     )
 
-    return qa_chain, project_title
+    return qa_chain, project_title, project_id
