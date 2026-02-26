@@ -1,5 +1,5 @@
 import streamlit as st
-import rag_qa
+from rag_qa import *
 
 qa = rag_qa.load_qa_chain()
 
