@@ -1,8 +1,9 @@
-from langchain.chains import RetrievalQA
+from langchain.chains.retrieval_qa.base import RetrievalQA
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from transformers import pipeline
 from langchain_community.llms import HuggingFacePipeline
+
 
 def load_qa_chain():
     embeddings = HuggingFaceEmbeddings(
@@ -17,7 +18,7 @@ def load_qa_chain():
     retriever = vectordb.as_retriever()
 
     hf_pipeline = pipeline(
-        "text-generation",
+        "text2text-generation",
         model="google/flan-t5-base",
         max_length=512
     )
@@ -27,7 +28,8 @@ def load_qa_chain():
     qa = RetrievalQA.from_chain_type(
         llm=llm,
         chain_type="stuff",
-        retriever=retriever
+        retriever=retriever,
+        return_source_documents=True
     )
 
     return qa
