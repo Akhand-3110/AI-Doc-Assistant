@@ -58,9 +58,14 @@ def build_qa_system(uploaded_files):
 
     vectordb = Chroma.from_documents(docs, embedding=embeddings)
 
+    # ✅ CORRECT HuggingFaceHub usage
     llm = HuggingFaceHub(
-        repo_id="google/flan-t5-small",
-        model_kwargs={"temperature": 0.1}
+        model="google/flan-t5-small",
+        huggingfacehub_api_token=os.environ.get("HUGGINGFACEHUB_API_TOKEN"),
+        model_kwargs={
+            "temperature": 0.1,
+            "max_new_tokens": 128
+        }
     )
 
     prompt = PromptTemplate(
