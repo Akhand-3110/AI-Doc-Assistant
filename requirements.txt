@@ -1,7 +1,10 @@
 streamlit>=1.31.0
+
 langchain==0.1.16
 langchain-community==0.0.34
+
 chromadb>=0.5.0
 pypdf>=4.0.0
 sentence-transformers>=2.6.1
-huggingface-hub>=0.20.0
+
+requests>=2.31.0

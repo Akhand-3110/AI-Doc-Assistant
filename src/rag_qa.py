@@ -1,33 +1,68 @@
 import os
-import tempfile
 import re
+import tempfile
+import requests
 from pypdf import PdfReader
 
-from langchain.chains.retrieval_qa.base import RetrievalQA
-from langchain.prompts import PromptTemplate
 from langchain.schema import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.chains.retrieval_qa.base import RetrievalQA
+from langchain.prompts import PromptTemplate
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
-from langchain_community.llms import HuggingFaceHub
+from langchain_core.language_models.llms import LLM
+from typing import Optional, List
 
 
+# ---------------------------
+# Rule-based extractors
+# ---------------------------
 def extract_project_title(text):
-    match = re.search(r'ON\s+["“](.+?)["”]', text, re.IGNORECASE)
-    return match.group(1).strip() if match else None
+    m = re.search(r'ON\s+["“](.+?)["”]', text, re.IGNORECASE)
+    return m.group(1).strip() if m else None
 
 
 def extract_project_id(text):
-    match = re.search(r'Project\s*Id\s*:\s*(\d+)', text, re.IGNORECASE)
-    return match.group(1) if match else None
+    m = re.search(r'Project\s*Id\s*:\s*(\d+)', text, re.IGNORECASE)
+    return m.group(1) if m else None
 
 
+# ---------------------------
+# Custom HF Inference LLM
+# ---------------------------
+class HFInferenceLLM(LLM):
+    model: str = "google/flan-t5-small"
+
+    @property
+    def _llm_type(self) -> str:
+        return "hf_inference"
+
+    def _call(self, prompt: str, stop: Optional[List[str]] = None) -> str:
+        token = os.environ.get("HUGGINGFACEHUB_API_TOKEN")
+        if not token:
+            raise ValueError("HUGGINGFACEHUB_API_TOKEN not set")
+
+        url = f"https://api-inference.huggingface.co/models/{self.model}"
+        headers = {"Authorization": f"Bearer {token}"}
+        payload = {
+            "inputs": prompt,
+            "parameters": {"max_new_tokens": 128}
+        }
+
+        r = requests.post(url, headers=headers, json=payload, timeout=60)
+        r.raise_for_status()
+        return r.json()[0]["generated_text"]
+
+
+# ---------------------------
+# Main builder
+# ---------------------------
 def build_qa_system(uploaded_files):
     full_text = ""
 
-    for uploaded_file in uploaded_files:
+    for file in uploaded_files:
         with tempfile.NamedTemporaryFile(delete=False) as tmp:
-            tmp.write(uploaded_file.read())
+            tmp.write(file.read())
             path = tmp.name
 
         reader = PdfReader(path)
@@ -44,29 +79,21 @@ def build_qa_system(uploaded_files):
     project_title = extract_project_title(full_text)
     project_id = extract_project_id(full_text)
 
-    documents = [Document(page_content=full_text)]
+    docs = [Document(page_content=full_text)]
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=200,
         chunk_overlap=40
     )
-    docs = splitter.split_documents(documents)
+    chunks = splitter.split_documents(docs)
 
     embeddings = HuggingFaceEmbeddings(
         model_name="sentence-transformers/all-MiniLM-L6-v2"
     )
 
-    vectordb = Chroma.from_documents(docs, embedding=embeddings)
+    vectordb = Chroma.from_documents(chunks, embedding=embeddings)
 
-    # ✅ CORRECT HuggingFaceHub usage
-    llm = HuggingFaceHub(
-        model="google/flan-t5-small",
-        huggingfacehub_api_token=os.environ.get("HUGGINGFACEHUB_API_TOKEN"),
-        model_kwargs={
-            "temperature": 0.1,
-            "max_new_tokens": 128
-        }
-    )
+    llm = HFInferenceLLM()
 
     prompt = PromptTemplate(
         input_variables=["context", "question"],
