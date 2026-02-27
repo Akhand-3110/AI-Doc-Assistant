@@ -1,7 +1,9 @@
 import os
 import re
 import tempfile
+import time
 import requests
+from typing import Optional, List
 from pypdf import PdfReader
 
 from langchain.schema import Document
@@ -11,25 +13,24 @@ from langchain.prompts import PromptTemplate
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from langchain_core.language_models.llms import LLM
-from typing import Optional, List
 
 
-# ---------------------------
+# -------------------------
 # Rule-based extractors
-# ---------------------------
+# -------------------------
 def extract_project_title(text):
-    m = re.search(r'ON\s+["“](.+?)["”]', text, re.IGNORECASE)
-    return m.group(1).strip() if m else None
+    match = re.search(r'ON\s+["“](.+?)["”]', text, re.IGNORECASE)
+    return match.group(1).strip() if match else None
 
 
 def extract_project_id(text):
-    m = re.search(r'Project\s*Id\s*:\s*(\d+)', text, re.IGNORECASE)
-    return m.group(1) if m else None
+    match = re.search(r'Project\s*Id\s*:\s*(\d+)', text, re.IGNORECASE)
+    return match.group(1) if match else None
 
 
-# ---------------------------
-# Custom HF Inference LLM
-# ---------------------------
+# -------------------------
+# Hugging Face Inference LLM
+# -------------------------
 class HFInferenceLLM(LLM):
     model: str = "google/flan-t5-small"
 
@@ -40,23 +41,47 @@ class HFInferenceLLM(LLM):
     def _call(self, prompt: str, stop: Optional[List[str]] = None) -> str:
         token = os.environ.get("HUGGINGFACEHUB_API_TOKEN")
         if not token:
-            raise ValueError("HUGGINGFACEHUB_API_TOKEN not set")
+            return "Hugging Face API token is not configured."
 
         url = f"https://api-inference.huggingface.co/models/{self.model}"
         headers = {"Authorization": f"Bearer {token}"}
+
         payload = {
             "inputs": prompt,
-            "parameters": {"max_new_tokens": 128}
+            "parameters": {
+                "max_new_tokens": 128,
+                "temperature": 0.1
+            }
         }
 
-        r = requests.post(url, headers=headers, json=payload, timeout=60)
-        r.raise_for_status()
-        return r.json()[0]["generated_text"]
+        # Retry once (HF often returns 503)
+        for attempt in range(2):
+            try:
+                r = requests.post(
+                    url,
+                    headers=headers,
+                    json=payload,
+                    timeout=60
+                )
+
+                if r.status_code == 503:
+                    time.sleep(5)
+                    continue
+
+                r.raise_for_status()
+                return r.json()[0]["generated_text"]
+
+            except requests.exceptions.RequestException:
+                if attempt == 1:
+                    return (
+                        "The AI model is temporarily busy. "
+                        "Please wait a few seconds and try again."
+                    )
 
 
-# ---------------------------
-# Main builder
-# ---------------------------
+# -------------------------
+# Main QA builder
+# -------------------------
 def build_qa_system(uploaded_files):
     full_text = ""
 
@@ -67,25 +92,26 @@ def build_qa_system(uploaded_files):
 
         reader = PdfReader(path)
         for page in reader.pages:
-            t = page.extract_text()
-            if t:
-                full_text += t + "\n"
+            text = page.extract_text()
+            if text:
+                full_text += text + "\n"
 
         os.remove(path)
 
     if not full_text.strip():
-        raise ValueError("No readable text found in PDF.")
+        raise ValueError("No readable text found in uploaded PDF.")
 
+    # Rule-based metadata
     project_title = extract_project_title(full_text)
     project_id = extract_project_id(full_text)
 
-    docs = [Document(page_content=full_text)]
+    documents = [Document(page_content=full_text)]
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=200,
         chunk_overlap=40
     )
-    chunks = splitter.split_documents(docs)
+    chunks = splitter.split_documents(documents)
 
     embeddings = HuggingFaceEmbeddings(
         model_name="sentence-transformers/all-MiniLM-L6-v2"
@@ -98,7 +124,7 @@ def build_qa_system(uploaded_files):
     prompt = PromptTemplate(
         input_variables=["context", "question"],
         template=(
-            "Answer using ONLY the context below.\n\n"
+            "Answer the question using ONLY the context below.\n\n"
             "Context:\n{context}\n\n"
             "Question:\n{question}\n\n"
             "Answer:"

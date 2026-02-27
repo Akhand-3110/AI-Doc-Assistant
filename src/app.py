@@ -30,7 +30,7 @@ query = st.text_input("❓ Ask a question")
 if query and qa:
     q = query.lower()
 
-    # 🎯 RULE-BASED (NO SOURCES)
+    # 🎯 RULE-BASED ANSWERS (NO SOURCES)
     if "title" in q and project_title:
         st.subheader("✅ Answer")
         st.write(project_title)
@@ -39,15 +39,22 @@ if query and qa:
         st.subheader("✅ Answer")
         st.write(f"The project ID is {project_id}.")
 
-    # 🤖 RAG-BASED (WITH SOURCES)
+    # 🤖 RAG-BASED ANSWERS (WITH SOURCES)
     else:
-        with st.spinner("Thinking..."):
-            result = qa(query)
+        try:
+            with st.spinner("Thinking..."):
+                result = qa(query)
 
-        st.subheader("✅ Answer")
-        st.write(result.get("result", "No answer found."))
+            st.subheader("✅ Answer")
+            st.write(result.get("result", "No answer found."))
 
-        if result.get("source_documents"):
-            st.subheader("📚 Sources")
-            for i, _ in enumerate(result["source_documents"], 1):
-                st.write(f"Source {i}")
+            if result.get("source_documents"):
+                st.subheader("📚 Sources")
+                for i, _ in enumerate(result["source_documents"], 1):
+                    st.write(f"Source {i}")
+
+        except Exception:
+            st.error(
+                "The AI service is temporarily busy. "
+                "Please wait a few seconds and try again."
+            )
